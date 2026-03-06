@@ -22,7 +22,7 @@ const statusConfig: Record<
 function formatCurrency(v: number) {
     return new Intl.NumberFormat("en-US", {
         style: "currency",
-        currency: "USD",
+        currency: "INR",
         minimumFractionDigits: 2,
         maximumFractionDigits: 4,
     }).format(v);
