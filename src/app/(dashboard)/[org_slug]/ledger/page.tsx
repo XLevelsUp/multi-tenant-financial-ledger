@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getTransactions, getOrganizationAccounts } from "@/actions/ledger";
 import { LedgerClient } from "@/components/ledger/ledger-client";
 import type { Metadata } from "next";
@@ -35,11 +36,31 @@ export default async function LedgerPage({
 
     if (!org) notFound();
 
-    // Parallel fetch of transactions and chart of accounts
-    const [{ data: transactions, count }, accounts] = await Promise.all([
-        getTransactions(org.id, page),
-        getOrganizationAccounts(org.id),
-    ]);
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+
+    // Parallel fetch of transactions, accounts, and caller's role
+    const [{ data: transactions, count }, accounts, membershipResult, profileResult] =
+        await Promise.all([
+            getTransactions(org.id, page),
+            getOrganizationAccounts(org.id),
+            createAdminClient()
+                .from("memberships")
+                .select("role")
+                .eq("organization_id", org.id)
+                .eq("user_id", user!.id)
+                .single(),
+            createAdminClient()
+                .from("profiles")
+                .select("is_system_admin")
+                .eq("id", user!.id)
+                .single(),
+        ]);
+
+    const role = membershipResult.data?.role ?? "member";
+    const isSystemAdmin = profileResult.data?.is_system_admin ?? false;
+    const canWrite = role === "owner" || role === "admin" || isSystemAdmin;
 
     return (
         <div className="space-y-6">
@@ -49,6 +70,7 @@ export default async function LedgerPage({
                 organizationId={org.id}
                 orgSlug={org_slug}
                 accounts={accounts}
+                canWrite={canWrite}
             />
 
             {/* Pagination (simple prev/next) */}

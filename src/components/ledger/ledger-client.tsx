@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { NewTransactionDialog } from "@/components/ledger/new-transaction-dialog";
-import { useRBAC } from "@/hooks/use-rbac";
 import type { Account, TransactionWithLines, TransactionStatus } from "@/types/database";
 
 const statusConfig: Record<
@@ -41,13 +40,14 @@ function formatDate(d: string) {
 function TransactionRow({
     tx,
     orgSlug,
+    canWrite,
 }: {
     tx: TransactionWithLines;
     orgSlug: string;
+    canWrite: boolean;
 }) {
     const [expanded, setExpanded] = useState(false);
     const cfg = statusConfig[tx.status];
-    const { isAdmin } = useRBAC();
 
     return (
         <>
@@ -96,7 +96,7 @@ function TransactionRow({
                     {tx.creator?.full_name ?? tx.creator?.email ?? "—"}
                 </td>
                 <td className="py-3 pr-3 text-right">
-                    {isAdmin && tx.status === "draft" && (
+                    {canWrite && tx.status === "draft" && (
                         <Link
                             href={`/${orgSlug}/ledger/${tx.id}/edit`}
                             onClick={(e) => e.stopPropagation()}
@@ -175,6 +175,7 @@ interface LedgerClientProps {
     organizationId: string;
     orgSlug: string;
     accounts: Account[];
+    canWrite: boolean;
 }
 
 export function LedgerClient({
@@ -183,9 +184,9 @@ export function LedgerClient({
     organizationId,
     orgSlug,
     accounts,
+    canWrite,
 }: LedgerClientProps) {
     const [dialogOpen, setDialogOpen] = useState(false);
-    const { isAdmin } = useRBAC();
 
     return (
         <>
@@ -199,7 +200,7 @@ export function LedgerClient({
                         {count} transaction{count !== 1 ? "s" : ""}
                     </p>
                 </div>
-                {isAdmin && (
+                {canWrite && (
                     <button
                         onClick={() => setDialogOpen(true)}
                         className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 to-violet-600 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-indigo-500/25 hover:from-indigo-600 hover:to-violet-700 transition-all"
@@ -285,7 +286,7 @@ export function LedgerClient({
                                 </tr>
                             ) : (
                                 transactions.map((tx) => (
-                                    <TransactionRow key={tx.id} tx={tx} orgSlug={orgSlug} />
+                                    <TransactionRow key={tx.id} tx={tx} orgSlug={orgSlug} canWrite={canWrite} />
                                 ))
                             )}
                         </tbody>

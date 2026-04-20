@@ -41,7 +41,7 @@ export async function provisionTenantAction(data: {
     // Step 1: Validate inputs
     const parsed = ProvisionTenantSchema.safeParse(data);
     if (!parsed.success) {
-        return { success: false, error: parsed.error.errors[0]?.message ?? "Invalid input." };
+        return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
     }
     const { orgName, adminEmail, adminPassword } = parsed.data;
 
