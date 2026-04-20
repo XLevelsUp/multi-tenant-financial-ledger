@@ -60,8 +60,8 @@ export default async function OrgDashboardPage({
     // ── Aggregate posted totals from journal_lines directly ─────────────────
     const { data: totals } = await admin
         .from("journal_lines")
-        .select("amount, type, transactions!inner(organization_id, status)")
-        .eq("transactions.organization_id", org.id)
+        .select("amount, type, transactions!inner(status)")
+        .eq("organization_id", org.id)
         .eq("transactions.status", "posted");
 
     const totalDebits =

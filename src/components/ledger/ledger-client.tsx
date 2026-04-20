@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { NewTransactionDialog } from "@/components/ledger/new-transaction-dialog";
+import { useRBAC } from "@/hooks/use-rbac";
 import type { Account, TransactionWithLines, TransactionStatus } from "@/types/database";
 
 const statusConfig: Record<
@@ -38,11 +40,14 @@ function formatDate(d: string) {
 
 function TransactionRow({
     tx,
+    orgSlug,
 }: {
     tx: TransactionWithLines;
+    orgSlug: string;
 }) {
     const [expanded, setExpanded] = useState(false);
     const cfg = statusConfig[tx.status];
+    const { isAdmin } = useRBAC();
 
     return (
         <>
@@ -90,12 +95,26 @@ function TransactionRow({
                 <td className="py-3 pr-3 text-right text-xs text-zinc-500">
                     {tx.creator?.full_name ?? tx.creator?.email ?? "—"}
                 </td>
+                <td className="py-3 pr-3 text-right">
+                    {isAdmin && tx.status === "draft" && (
+                        <Link
+                            href={`/${orgSlug}/ledger/${tx.id}/edit`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-2 py-1 text-[11px] text-zinc-400 hover:border-indigo-500/50 hover:text-indigo-300 transition-colors"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3" aria-hidden="true">
+                                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                            </svg>
+                            Edit
+                        </Link>
+                    )}
+                </td>
             </tr>
 
             {/* Expanded journal lines */}
             {expanded && (
                 <tr className="border-b border-zinc-800/50 bg-zinc-900/60">
-                    <td colSpan={7} className="px-8 pb-3 pt-1">
+                    <td colSpan={8} className="px-8 pb-3 pt-1">
                         <div className="rounded-md border border-zinc-800 overflow-hidden">
                             <table className="w-full text-xs" role="table" aria-label="Journal lines">
                                 <thead>
@@ -166,6 +185,7 @@ export function LedgerClient({
     accounts,
 }: LedgerClientProps) {
     const [dialogOpen, setDialogOpen] = useState(false);
+    const { isAdmin } = useRBAC();
 
     return (
         <>
@@ -179,27 +199,29 @@ export function LedgerClient({
                         {count} transaction{count !== 1 ? "s" : ""}
                     </p>
                 </div>
-                <button
-                    onClick={() => setDialogOpen(true)}
-                    className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 to-violet-600 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-indigo-500/25 hover:from-indigo-600 hover:to-violet-700 transition-all"
-                >
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="h-4 w-4"
-                        aria-hidden="true"
+                {isAdmin && (
+                    <button
+                        onClick={() => setDialogOpen(true)}
+                        className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 to-violet-600 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-indigo-500/25 hover:from-indigo-600 hover:to-violet-700 transition-all"
                     >
-                        <circle cx="12" cy="12" r="10" />
-                        <path d="M8 12h8" />
-                        <path d="M12 8v8" />
-                    </svg>
-                    New Entry
-                </button>
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="h-4 w-4"
+                            aria-hidden="true"
+                        >
+                            <circle cx="12" cy="12" r="10" />
+                            <path d="M8 12h8" />
+                            <path d="M12 8v8" />
+                        </svg>
+                        New Entry
+                    </button>
+                )}
             </div>
 
             {/* Transactions Table */}
@@ -227,12 +249,15 @@ export function LedgerClient({
                                 <th className="py-3 pr-3 text-right text-xs font-medium uppercase tracking-wider text-zinc-500">
                                     Created By
                                 </th>
+                                <th className="py-3 pr-3 text-right text-xs font-medium uppercase tracking-wider text-zinc-500">
+                                    Actions
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
                             {transactions.length === 0 ? (
                                 <tr>
-                                    <td colSpan={7} className="py-16 text-center">
+                                    <td colSpan={8} className="py-16 text-center">
                                         <div className="flex flex-col items-center gap-3">
                                             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-800">
                                                 <svg
@@ -260,7 +285,7 @@ export function LedgerClient({
                                 </tr>
                             ) : (
                                 transactions.map((tx) => (
-                                    <TransactionRow key={tx.id} tx={tx} />
+                                    <TransactionRow key={tx.id} tx={tx} orgSlug={orgSlug} />
                                 ))
                             )}
                         </tbody>

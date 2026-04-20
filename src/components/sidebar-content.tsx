@@ -16,9 +16,10 @@ interface SidebarContentProps {
     organizations: OrgWithRole[];
     userEmail: string;
     userInitials: string;
+    isSystemAdmin: boolean;
 }
 
-const navItems = [
+const openItems = [
     {
         label: "Dashboard",
         segment: "",
@@ -49,15 +50,6 @@ const navItems = [
         ),
     },
     {
-        label: "Periods",
-        segment: "/periods",
-        icon: (
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden="true">
-                <rect width="18" height="18" x="3" y="4" rx="2" ry="2" /><line x1="16" x2="16" y1="2" y2="6" /><line x1="8" x2="8" y1="2" y2="6" /><line x1="3" x2="21" y1="10" y2="10" />
-            </svg>
-        ),
-    },
-    {
         label: "Reports",
         segment: "/reports",
         icon: (
@@ -72,6 +64,18 @@ const navItems = [
         icon: (
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden="true">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+        ),
+    },
+];
+
+const restrictedItems = [
+    {
+        label: "Periods",
+        segment: "/periods",
+        icon: (
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden="true">
+                <rect width="18" height="18" x="3" y="4" rx="2" ry="2" /><line x1="16" x2="16" y1="2" y2="6" /><line x1="8" x2="8" y1="2" y2="6" /><line x1="3" x2="21" y1="10" y2="10" />
             </svg>
         ),
     },
@@ -91,10 +95,39 @@ export function SidebarContent({
     organizations,
     userEmail,
     userInitials,
+    isSystemAdmin,
 }: SidebarContentProps) {
     const params = useParams();
     const pathname = usePathname();
     const orgSlug = params.org_slug as string | undefined;
+
+    const currentRole = organizations.find((o) => o.slug === orgSlug)?.role ?? "member";
+    const canSeeRestricted = currentRole !== "member" || isSystemAdmin;
+
+    function renderNavLink(item: { label: string; segment: string; icon: React.ReactNode }) {
+        const href = orgSlug ? `/${orgSlug}${item.segment}` : "#";
+        const isActive = orgSlug
+            ? item.segment === ""
+                ? pathname === `/${orgSlug}`
+                : pathname.startsWith(`/${orgSlug}${item.segment}`)
+            : false;
+
+        return (
+            <Link
+                key={item.label}
+                href={href}
+                className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+                    isActive
+                        ? "bg-indigo-500/10 text-indigo-300"
+                        : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-100"
+                }`}
+                aria-current={isActive ? "page" : undefined}
+            >
+                {item.icon}
+                {item.label}
+            </Link>
+        );
+    }
 
     return (
         <div className="flex h-full flex-col">
@@ -115,36 +148,15 @@ export function SidebarContent({
 
             {/* Org Switcher */}
             <div className="p-3">
-                <OrgSwitcher organizations={organizations} />
+                <OrgSwitcher organizations={organizations} isSystemAdmin={isSystemAdmin} />
             </div>
 
             <Separator className="bg-zinc-800" />
 
             {/* Navigation */}
             <nav className="flex-1 space-y-1 p-3" aria-label="Main navigation">
-                {navItems.map((item) => {
-                    const href = orgSlug ? `/${orgSlug}${item.segment}` : "#";
-                    const isActive = orgSlug
-                        ? item.segment === ""
-                            ? pathname === `/${orgSlug}`
-                            : pathname.startsWith(`/${orgSlug}${item.segment}`)
-                        : false;
-
-                    return (
-                        <Link
-                            key={item.label}
-                            href={href}
-                            className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${isActive
-                                ? "bg-indigo-500/10 text-indigo-300"
-                                : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-100"
-                                }`}
-                            aria-current={isActive ? "page" : undefined}
-                        >
-                            {item.icon}
-                            {item.label}
-                        </Link>
-                    );
-                })}
+                {openItems.map(renderNavLink)}
+                {canSeeRestricted && restrictedItems.map(renderNavLink)}
             </nav>
 
             <Separator className="bg-zinc-800" />

@@ -109,6 +109,7 @@ export interface Database {
           full_name: string | null;
           email: string | null;
           avatar_url: string | null;
+          is_system_admin: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -117,6 +118,7 @@ export interface Database {
           full_name?: string | null;
           email?: string | null;
           avatar_url?: string | null;
+          is_system_admin?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -125,6 +127,7 @@ export interface Database {
           full_name?: string | null;
           email?: string | null;
           avatar_url?: string | null;
+          is_system_admin?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -352,11 +355,29 @@ export interface Database {
         ];
       };
     };
-    Views: Record<string, never>;
+    Views: {
+      global_org_financials: {
+        Row: {
+          org_id: string;
+          org_name: string;
+          org_slug: string;
+          total_income: number;
+          total_expense: number;
+          net_profit: number;
+          transaction_count: number;
+          member_count: number;
+        };
+        Relationships: [];
+      };
+    };
     Functions: {
       get_active_organizations: {
         Args: Record<string, never>;
         Returns: string[];
+      };
+      is_current_user_system_admin: {
+        Args: Record<string, never>;
+        Returns: boolean;
       };
       record_transaction: {
         Args: {
@@ -388,6 +409,17 @@ export interface Database {
           p_retained_earnings_account_id: string;
         };
         Returns: string | null; // closing transaction UUID or null if no I/S activity
+      };
+      update_draft_transaction: {
+        Args: {
+          p_tx_id: string;
+          p_org_id: string;
+          p_description: string;
+          p_entry_date: string;
+          p_status: string;
+          p_lines: RecordTransactionLineInput[];
+        };
+        Returns: string; // updated transaction UUID
       };
     };
     Enums: {
@@ -484,3 +516,22 @@ export type AccountingPeriodInsert = TablesInsert<"accounting_periods">;
 // ============================================================================
 
 export type AuditLog = Tables<"audit_log">;
+
+// ============================================================================
+// CONVENIENCE ALIASES — Phase 6 (Super Admin)
+// ============================================================================
+
+export type GlobalOrgFinancials =
+  Database["public"]["Views"]["global_org_financials"]["Row"];
+
+export interface GlobalTransaction {
+  id: string;
+  organization_id: string;
+  description: string;
+  entry_date: string;
+  status: TransactionStatus;
+  created_at: string;
+  organization: { id: string; name: string; slug: string } | null;
+  total_debits: number;
+  total_credits: number;
+}

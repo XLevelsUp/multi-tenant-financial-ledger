@@ -31,10 +31,11 @@ interface OrgWithRole extends Organization {
 
 interface OrgSwitcherProps {
     organizations: OrgWithRole[];
+    isSystemAdmin: boolean;
     collapsed?: boolean;
 }
 
-export function OrgSwitcher({ organizations, collapsed }: OrgSwitcherProps) {
+export function OrgSwitcher({ organizations, isSystemAdmin, collapsed }: OrgSwitcherProps) {
     const router = useRouter();
     const params = useParams();
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -131,28 +132,32 @@ export function OrgSwitcher({ organizations, collapsed }: OrgSwitcherProps) {
                             </DropdownMenuItem>
                         ))
                     )}
-                    <DropdownMenuSeparator className="bg-zinc-800" />
-                    <DropdownMenuItem
-                        onClick={() => setDialogOpen(true)}
-                        className="cursor-pointer text-zinc-300 focus:bg-zinc-800 focus:text-zinc-100"
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="mr-2 h-4 w-4"
-                            aria-hidden="true"
-                        >
-                            <circle cx="12" cy="12" r="10" />
-                            <path d="M8 12h8" />
-                            <path d="M12 8v8" />
-                        </svg>
-                        Create Organization
-                    </DropdownMenuItem>
+                    {isSystemAdmin && (
+                        <>
+                            <DropdownMenuSeparator className="bg-zinc-800" />
+                            <DropdownMenuItem
+                                onClick={() => setDialogOpen(true)}
+                                className="cursor-pointer text-zinc-300 focus:bg-zinc-800 focus:text-zinc-100"
+                            >
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    className="mr-2 h-4 w-4"
+                                    aria-hidden="true"
+                                >
+                                    <circle cx="12" cy="12" r="10" />
+                                    <path d="M8 12h8" />
+                                    <path d="M12 8v8" />
+                                </svg>
+                                Create Organization
+                            </DropdownMenuItem>
+                        </>
+                    )}
                 </DropdownMenuContent>
             </DropdownMenu>
 

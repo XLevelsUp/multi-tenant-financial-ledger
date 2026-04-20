@@ -28,11 +28,13 @@ export default async function DashboardLayout({
         redirect("/login");
     }
 
-    // Fetch organizations with roles
-    const { data: memberships } = await supabase
-        .from("memberships")
-        .select("role, organizations(*)")
-        .eq("user_id", user.id);
+    // Fetch organizations with roles + system admin flag in parallel
+    const [{ data: memberships }, { data: profile }] = await Promise.all([
+        supabase.from("memberships").select("role, organizations(*)").eq("user_id", user.id),
+        supabase.from("profiles").select("is_system_admin").eq("id", user.id).single(),
+    ]);
+
+    const isSystemAdmin = profile?.is_system_admin ?? false;
 
     const organizations: OrgWithRole[] =
         memberships
@@ -56,6 +58,7 @@ export default async function DashboardLayout({
                     organizations={organizations}
                     userEmail={userEmail}
                     userInitials={userInitials}
+                    isSystemAdmin={isSystemAdmin}
                 />
             </aside>
 
@@ -88,6 +91,7 @@ export default async function DashboardLayout({
                         organizations={organizations}
                         userEmail={userEmail}
                         userInitials={userInitials}
+                        isSystemAdmin={isSystemAdmin}
                     />
                 </SheetContent>
             </Sheet>

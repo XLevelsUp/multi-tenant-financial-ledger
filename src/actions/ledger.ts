@@ -57,6 +57,34 @@ export type CreateTransactionResult =
     | { success: true; transactionId: string }
     | { success: false; error: string; fieldErrors?: Record<string, string[]> };
 
+const UpdateTransactionSchema = z.object({
+    tx_id: z.string().uuid("Invalid transaction ID"),
+    org_id: z.string().uuid("Invalid organization ID"),
+    description: z.string().min(1, "Description is required").max(500),
+    entry_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)"),
+    status: z.enum(["draft", "posted"]),
+    lines: z
+        .array(JournalLineSchema)
+        .min(2, "A transaction requires at least 2 journal lines")
+        .refine(
+            (lines) => {
+                const totalDebits = lines
+                    .filter((l) => l.type === "debit")
+                    .reduce((sum, l) => sum + Math.round(parseFloat(l.amount) * 10000), 0);
+                const totalCredits = lines
+                    .filter((l) => l.type === "credit")
+                    .reduce((sum, l) => sum + Math.round(parseFloat(l.amount) * 10000), 0);
+                return totalDebits === totalCredits;
+            },
+            { message: "Journal entries do not balance: total debits must equal total credits" }
+        ),
+});
+
+export type UpdateTransactionInput = z.infer<typeof UpdateTransactionSchema>;
+export type UpdateTransactionResult =
+    | { success: true; transactionId: string }
+    | { success: false; error: string; fieldErrors?: Record<string, string[]> };
+
 // ============================================================================
 // SERVER ACTIONS
 // ============================================================================
@@ -213,4 +241,120 @@ export async function getTransactions(
     });
 
     return { data: enriched as TransactionWithLines[], count: count ?? 0 };
+}
+
+/**
+ * getTransactionById
+ * Fetches a single transaction with its journal lines and account info.
+ * Returns null if the transaction does not exist or belongs to a different org.
+ */
+export async function getTransactionById(
+    txId: string,
+    orgId: string
+): Promise<TransactionWithLines | null> {
+    const supabase = await createClient();
+
+    const { data, error } = await supabase
+        .from("transactions")
+        .select(
+            `
+            *,
+            journal_lines (
+                *,
+                account:accounts ( id, name, code, type )
+            ),
+            creator:profiles!transactions_created_by_fkey ( id, full_name, email )
+            `
+        )
+        .eq("id", txId)
+        .eq("organization_id", orgId)
+        .single();
+
+    if (error || !data) {
+        console.error("Failed to fetch transaction:", error);
+        return null;
+    }
+
+    const lines = data.journal_lines ?? [];
+    const total_debits = lines
+        .filter((l: { type: string }) => l.type === "debit")
+        .reduce((sum: number, l: { amount: number }) => sum + Number(l.amount), 0);
+    const total_credits = lines
+        .filter((l: { type: string }) => l.type === "credit")
+        .reduce((sum: number, l: { amount: number }) => sum + Number(l.amount), 0);
+
+    return { ...data, total_debits, total_credits } as TransactionWithLines;
+}
+
+/**
+ * updateTransactionAction
+ * Validates the payload with Zod, then calls the atomic update_draft_transaction RPC.
+ * On success revalidates the ledger list and the edit page path.
+ */
+export async function updateTransactionAction(
+    input: UpdateTransactionInput,
+    orgSlug: string
+): Promise<UpdateTransactionResult> {
+    const parsed = UpdateTransactionSchema.safeParse(input);
+    if (!parsed.success) {
+        const fieldErrors: Record<string, string[]> = {};
+        parsed.error.issues.forEach((issue) => {
+            const key = issue.path.join(".");
+            fieldErrors[key] = [...(fieldErrors[key] ?? []), issue.message];
+        });
+        return {
+            success: false,
+            error: parsed.error.issues[0]?.message ?? "Validation failed",
+            fieldErrors,
+        };
+    }
+
+    const { tx_id, org_id, description, entry_date, status, lines } = parsed.data;
+
+    const supabase = await createClient();
+
+    const {
+        data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: "Not authenticated" };
+
+    const rpcLines: RecordTransactionLineInput[] = lines.map((line) => ({
+        account_id: line.account_id,
+        amount: line.amount,
+        type: line.type,
+        description: line.description,
+    }));
+
+    const { data: transactionId, error } = await supabase.rpc("update_draft_transaction", {
+        p_tx_id: tx_id,
+        p_org_id: org_id,
+        p_description: description,
+        p_entry_date: entry_date,
+        p_status: status,
+        p_lines: rpcLines as unknown as never,
+    });
+
+    if (error) {
+        console.error("[update_draft_transaction RPC error]", error);
+        const raw = error.message ?? "";
+        const msg = raw.includes("do not balance")
+            ? "Journal entries do not balance. Debits must equal Credits."
+            : raw.includes("Access denied") || raw.includes("not a member")
+                ? "Access denied — you are not a member of this organization."
+                : raw.includes("Cannot edit a posted")
+                    ? "Cannot edit a posted transaction. Create a reversal entry instead."
+                    : raw.includes("closed accounting period") || raw.includes("closed period")
+                        ? "Cannot post to a closed accounting period. Use a date in an open period."
+                        : raw.includes("not found or inactive")
+                            ? "One or more selected accounts is inactive or not found."
+                            : raw.includes("not found in this organization")
+                                ? "Transaction not found."
+                                : raw || "Failed to update transaction. Please try again.";
+        return { success: false, error: msg };
+    }
+
+    revalidatePath(`/${orgSlug}/ledger`);
+    revalidatePath(`/${orgSlug}/ledger/${tx_id}/edit`);
+
+    return { success: true, transactionId: transactionId as string };
 }
